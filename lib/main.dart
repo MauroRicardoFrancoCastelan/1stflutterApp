@@ -1,29 +1,128 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:google_fonts/google_fonts.dart'; // Descomenta si usas Google Fonts
 
 void main() => runApp(const MyApp());
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _isDarkMode = false;
+  String _selectedFont = 'Roboto';
+  Color _primaryColor = Colors.purple;
+  String _userName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  // Cargar preferencias guardadas
+  _loadPreferences() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isDarkMode = prefs.getBool('isDarkMode') ?? false;
+      _selectedFont = prefs.getString('selectedFont') ?? 'Roboto';
+      _primaryColor = Color(
+        prefs.getInt('primaryColor') ?? Colors.purple.value,
+      );
+      _userName = prefs.getString('userName') ?? '';
+    });
+  }
+
+  // Guardar preferencias
+  _savePreferences() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', _isDarkMode);
+    await prefs.setString('selectedFont', _selectedFont);
+    await prefs.setInt('primaryColor', _primaryColor.value);
+    await prefs.setString('userName', _userName);
+  }
+
+  // Métodos para actualizar configuraciones
+  void updateTheme(bool isDark) {
+    setState(() {
+      _isDarkMode = isDark;
+    });
+    _savePreferences();
+  }
+
+  void updateFont(String font) {
+    setState(() {
+      _selectedFont = font;
+    });
+    _savePreferences();
+  }
+
+  void updatePrimaryColor(Color color) {
+    setState(() {
+      _primaryColor = color;
+    });
+    _savePreferences();
+  }
+
+  void updateUserName(String name) {
+    setState(() {
+      _userName = name;
+    });
+    _savePreferences();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Contador',
       theme: ThemeData(
-        fontFamily: 'Roboto',
+        fontFamily: _selectedFont == 'Default' ? null : _selectedFont,
+        // textTheme: GoogleFonts.getTextTheme(_selectedFont), // Usa esto si instalas Google Fonts
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.purple,
-        ), // Color morado
+          seedColor: _primaryColor,
+          brightness: _isDarkMode ? Brightness.dark : Brightness.light,
+        ),
         useMaterial3: true,
       ),
-      home: const HomeNavigation(),
+      home: HomeNavigation(
+        isDarkMode: _isDarkMode,
+        selectedFont: _selectedFont,
+        primaryColor: _primaryColor,
+        userName: _userName,
+        onThemeChanged: updateTheme,
+        onFontChanged: updateFont,
+        onColorChanged: updatePrimaryColor,
+        onUserNameChanged: updateUserName,
+      ),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
 class HomeNavigation extends StatefulWidget {
-  const HomeNavigation({super.key});
+  final bool isDarkMode;
+  final String selectedFont;
+  final Color primaryColor;
+  final String userName;
+  final Function(bool) onThemeChanged;
+  final Function(String) onFontChanged;
+  final Function(Color) onColorChanged;
+  final Function(String) onUserNameChanged;
+
+  const HomeNavigation({
+    super.key,
+    required this.isDarkMode,
+    required this.selectedFont,
+    required this.primaryColor,
+    required this.userName,
+    required this.onThemeChanged,
+    required this.onFontChanged,
+    required this.onColorChanged,
+    required this.onUserNameChanged,
+  });
 
   @override
   State<HomeNavigation> createState() => _HomeNavigationState();
@@ -71,12 +170,33 @@ class _HomeNavigationState extends State<HomeNavigation> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: <Widget>[
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.purple), // Morado
-              child: Text(
+            DrawerHeader(
+              decoration: BoxDecoration(color: widget.primaryColor),
+              child: const Text(
                 'Menú',
                 style: TextStyle(color: Colors.white, fontSize: 24),
               ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Configuración'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SettingsScreen(
+                      isDarkMode: widget.isDarkMode,
+                      selectedFont: widget.selectedFont,
+                      primaryColor: widget.primaryColor,
+                      userName: widget.userName,
+                      onThemeChanged: widget.onThemeChanged,
+                      onFontChanged: widget.onFontChanged,
+                      onColorChanged: widget.onColorChanged,
+                      onUserNameChanged: widget.onUserNameChanged,
+                    ),
+                  ),
+                );
+              },
             ),
             ListTile(
               leading: const Icon(Icons.pageview),
@@ -98,7 +218,27 @@ class _HomeNavigationState extends State<HomeNavigation> {
           ],
         ),
       ),
-      body: _screens[_selectedIndex], // Mostrar la pantalla seleccionada
+      body: Column(
+        children: [
+          Expanded(child: _screens[_selectedIndex]),
+          // Nombre en la parte inferior
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8.0),
+            color: Theme.of(context).colorScheme.surface,
+            child: Text(
+              widget.userName.isNotEmpty
+                  ? 'Usuario: ${widget.userName}'
+                  : 'Mauro Ricardo Franco Castelan',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: _selectedIndex == 0
           ? Column(
               mainAxisSize: MainAxisSize.min,
@@ -147,6 +287,203 @@ class _HomeNavigationState extends State<HomeNavigation> {
   }
 }
 
+// Pantalla de configuración
+class SettingsScreen extends StatefulWidget {
+  final bool isDarkMode;
+  final String selectedFont;
+  final Color primaryColor;
+  final String userName;
+  final Function(bool) onThemeChanged;
+  final Function(String) onFontChanged;
+  final Function(Color) onColorChanged;
+  final Function(String) onUserNameChanged;
+
+  const SettingsScreen({
+    super.key,
+    required this.isDarkMode,
+    required this.selectedFont,
+    required this.primaryColor,
+    required this.userName,
+    required this.onThemeChanged,
+    required this.onFontChanged,
+    required this.onColorChanged,
+    required this.onUserNameChanged,
+  });
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late TextEditingController _nameController;
+  late bool _isDarkMode;
+  late String _selectedFont;
+  late Color _primaryColor;
+
+  final List<String> _fonts = [
+    'Roboto',
+    'Roboto Mono',
+    'Roboto Slab',
+    'Roboto Condensed',
+  ];
+  final List<Color> _colors = [
+    Colors.purple,
+    Colors.blue,
+    Colors.green,
+    Colors.red,
+    Colors.orange,
+    Colors.teal,
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.userName);
+    _isDarkMode = widget.isDarkMode;
+    _selectedFont = widget.selectedFont;
+    _primaryColor = widget.primaryColor;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Configuración'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Campo de nombre de usuario
+            const Text(
+              'Nombre de Usuario:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Ingresa tu nombre',
+              ),
+              onChanged: (value) {
+                widget.onUserNameChanged(value);
+              },
+            ),
+            const SizedBox(height: 24),
+
+            // Switch para tema oscuro
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Tema Oscuro:',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                Switch(
+                  value: _isDarkMode,
+                  onChanged: (value) {
+                    setState(() {
+                      _isDarkMode = value;
+                    });
+                    widget.onThemeChanged(value);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Selector de fuente
+            const Text(
+              'Fuente:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _selectedFont,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              items: _fonts.map((font) {
+                return DropdownMenuItem(
+                  value: font,
+                  child: Text(font, style: TextStyle(fontFamily: font)),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _selectedFont = value;
+                  });
+                  widget.onFontChanged(value);
+                }
+              },
+            ),
+            const SizedBox(height: 24),
+
+            // Selector de color primario
+            const Text(
+              'Color Principal:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: _colors.map((color) {
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _primaryColor = color;
+                    });
+                    widget.onColorChanged(color);
+                  },
+                  child: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _primaryColor == color
+                            ? Colors.white
+                            : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 24),
+
+            // Botón para guardar configuración
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Configuración guardada exitosamente'),
+                    ),
+                  );
+                  Navigator.pop(context);
+                },
+                child: const Text('Guardar Configuración'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 //CONTADOR
 class CounterScreen extends StatefulWidget {
   const CounterScreen({super.key});
@@ -157,17 +494,36 @@ class CounterScreen extends StatefulWidget {
 
 class _CounterScreenState extends State<CounterScreen> {
   int counter = 0;
-  final int maxCounter = 20; // Cambié el valor máximo a 10
+  final int maxCounter = 20;
   final int minCounter = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCounter();
+  }
+
+  // Cargar el contador guardado
+  _loadCounter() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      counter = prefs.getInt('counter') ?? 0;
+    });
+  }
+
+  // Guardar el contador
+  _saveCounter() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('counter', counter);
+  }
 
   void increment() {
     setState(() {
       if (counter < maxCounter) {
         counter++;
+        _saveCounter();
       } else {
-        showSnackBar(
-          'No se permiten mas de 20 numeros',
-        ); // Mensaje si alcanza el máximo
+        showSnackBar('No se permiten mas de 20 numeros');
       }
     });
   }
@@ -176,6 +532,7 @@ class _CounterScreenState extends State<CounterScreen> {
     setState(() {
       if (counter > minCounter) {
         counter--;
+        _saveCounter();
       } else {
         showSnackBar('No se permiten negativos');
       }
@@ -185,6 +542,7 @@ class _CounterScreenState extends State<CounterScreen> {
   void reset() {
     setState(() {
       counter = 0;
+      _saveCounter();
     });
   }
 
@@ -199,7 +557,7 @@ class _CounterScreenState extends State<CounterScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Text(
-            'Mauro Ricardo Franco Castelan', // Tu nombre
+            'Mauro Ricardo Franco Castelan',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 24),
@@ -325,7 +683,6 @@ class ImageGridScreen extends StatelessWidget {
       itemBuilder: (context, index) {
         return GestureDetector(
           onTap: () {
-            // Mostrar imagen y descripción en pantalla completa
             Navigator.push(
               context,
               MaterialPageRoute(
